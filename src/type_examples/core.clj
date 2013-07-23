@@ -81,16 +81,69 @@
 
 ;; Unfortunately none of the following work...
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;;
+;; This doesn't check because the return type of (map inc [1 2 3]) is
+;; (LazySeq Number). Thus it hits the 4th arity of get-first-by-first.
+;; This could be improved (I think Typed Racket does better), 
+;;  but note the result can be cast to Number via
+;;
+;(t/cf
+; (let [e (get-first-by-first (map inc [1 2 3]))]
+;   (assert e)
+;   e))
+;  => AnyInteger
+;;
+;; Also, this function is a useful utility:
+;;
+
+ (t/ann never-nil (All [x] [(U x nil) -> x]))
+ (defn never-nil [a]
+   (assert (not (nil? a)) "Found nil")
+   a)
+
+;; 
+;; Now: 
+;(t/cf
+; (-> (get-first-by-first (map inc [1 2 3]))
+;   never-nil))
+;;  => AnyInteger
+;; 
+;; Also:
+; (t/cf
+;   (let [s (map inc [1 2 3])
+;         _ (assert (seq s))]
+;     (get-first-by-first s)))
+; => AnyInteger
+;;  
+;;  - Ambrose
 ;; (t/ann get-first-by-first-test-six Number)
 ;; (def get-first-by-first-test-six (get-first-by-first (map inc [1 2 3])))
+;;
+;;
 ;; (t/ann get-first-by-first-test-seven Number)
 ;; (def get-first-by-first-test-seven (get-first-by-first (mapv inc [1 2 3])))
+;;
+;; ; (first [1 :two "three"]) is handled specially in the type system.
+;; ; An arity like (Fn ['[x Any Any] -> x])  for get-first-by-first  would probably work
+;; ; but you'd need a separate case for each length of vector.
+;; ; The issue is:
+;; ; (t/cf (get-first-by-first [1 :two "three"]))
+;; ; => (U '1 ':two "three")
+;; ; because of the 3rd arity of get-first-by-first.
+;; ;
+;; ; - Ambrose
 ;; (t/ann get-first-by-first-test-eight Number)
 ;; (def get-first-by-first-test-eight (get-first-by-first [1 :two "three"]))
+;;
 ;; (t/ann get-first-by-first-test-nine Number)
 ;; (def get-first-by-first-test-nine (get-first-by-first '(1 2 3)))
 
 
+;  This is because clojure.lang.RT/nth's type doesn't currently allow nil as
+;  the first argument. Should be fixed in master, but please submit a bug report to
+;  JIRA, it might not be completely correct.
+;  -Ambrose
+;
 ;; Handle a seq full of something unknown, by destructuring...
 ;; *NOTE* Shouldn't this have the same signature as get-first-by-first?
 ;; -------------------------------------------------------------
@@ -183,6 +236,13 @@
 
 ;; Use HMap to indicate Clojure map types
 ;; --------------------------------------
+; Minor style thing:
+; I prefer
+; (t/ann handle-hmap ['{} -> '{:foo String}])
+; 
+; I like the HMap constructor when I define big unions of HMaps
+; -Ambrose
+;
 (t/ann handle-hmap [(HMap) -> (HMap :mandatory {:foo String})])
 (defn handle-hmap [map-arg]
   (assoc map-arg :foo "bar"))
@@ -193,6 +253,13 @@
 
 ;; This doesn't work unfortunately
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;;
+;;  zipmap is probably too much trouble to support returning a HMap. 
+;;  Usually you'd use assoc right?
+;;
+;;  -Ambrose
+;;  
+;;
 ;; (t/ann handle-hmap-test-three (HMap))
 ;; (def handle-hmap-test-three (handle-hmap (zipmap [:a :b :c] 
 ;;                                                  [1 2 3])))
